@@ -654,6 +654,12 @@ function M._create_commands()
   end
 
   local function handle_send_normal(opts)
+    -- Extract optional context text from command arguments (must be before any early returns)
+    local context_text = nil
+    if opts and opts.args and opts.args ~= "" then
+      context_text = opts.args
+    end
+
     local current_ft = (vim.bo and vim.bo.filetype) or ""
     local current_bufname = (vim.api and vim.api.nvim_buf_get_name and vim.api.nvim_buf_get_name(0)) or ""
 
@@ -685,12 +691,6 @@ function M._create_commands()
       return
     end
 
-    -- Extract optional context text from command arguments
-    local context_text = nil
-    if opts and opts.args and opts.args ~= "" then
-      context_text = opts.args
-    end
-
     local selection_module_ok, selection_module = pcall(require, "claudecode.selection")
     if selection_module_ok then
       -- Pass range information if available (for :'<,'> commands)
@@ -714,6 +714,12 @@ function M._create_commands()
   end
 
   local function handle_send_visual(visual_data, opts)
+    -- Extract optional context text from command arguments (must be before any early returns)
+    local context_text = nil
+    if opts and opts.args and opts.args ~= "" then
+      context_text = opts.args
+    end
+
     -- Check if we're in a tree buffer first
     local current_ft = (vim.bo and vim.bo.filetype) or ""
     local current_bufname = (vim.api and vim.api.nvim_buf_get_name and vim.api.nvim_buf_get_name(0)) or ""
@@ -784,12 +790,6 @@ function M._create_commands()
         end
         return
       end
-    end
-
-    -- Extract optional context text from command arguments
-    local context_text = nil
-    if opts and opts.args and opts.args ~= "" then
-      context_text = opts.args
     end
 
     -- Handle regular text selection using range from visual mode
