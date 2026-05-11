@@ -751,14 +751,32 @@ function M.send_at_mention_for_visual_selection(line1, line2, context_text)
       selection = sel_to_send.selection,
     }
     -- Use claudecode_main.state.server (validated above) instead of M.server (could be stale)
-    claudecode_main.state.server.broadcast("selection_changed", context_selection)
+    local broadcast_result = claudecode_main.state.server.broadcast("selection_changed", context_selection)
+    logger.info(
+      "selection",
+      "Broadcasted selection_changed with context: "
+        .. (broadcast_result and "success" or "failed")
+        .. " | text: "
+        .. vim.fn.strcharpart(context_selection.text, 0, 80)
+    )
+
+    -- Small delay to ensure the CLI processes selection_changed before at_mentioned
+    -- (CLI may drop rapid successive notifications if handler isn't fully wired)
+    vim.defer_fn(function()
+      local success, error_msg = claudecode_main.send_at_mention(file_path, start_line, end_line, "ClaudeCodeSend")
+      if success then
+        logger.debug("selection", "Visual selection sent as at-mention.")
+      else
+        logger.error("selection", "Failed to send at-mention: " .. (error_msg or "unknown error"))
+      end
+    end, 100) -- 100ms delay
+    return true
   end
 
   local success, error_msg = claudecode_main.send_at_mention(file_path, start_line, end_line, "ClaudeCodeSend")
 
   if success then
     logger.debug("selection", "Visual selection sent as at-mention.")
-
     return true
   else
     logger.error("selection", "Failed to send at-mention: " .. (error_msg or "unknown error"))
