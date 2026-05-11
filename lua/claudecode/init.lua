@@ -658,6 +658,12 @@ function M._create_commands()
     local context_text = nil
     if opts and opts.args and opts.args ~= "" then
       context_text = opts.args
+      -- Strip surrounding quotes if present (user may type :ClaudeCodeSend "hello")
+      if context_text:match('^".*"$') then
+        context_text = context_text:sub(2, -2)
+      elseif context_text:match("^'.*'$") then
+        context_text = context_text:sub(2, -2)
+      end
     end
 
     local current_ft = (vim.bo and vim.bo.filetype) or ""
@@ -718,6 +724,12 @@ function M._create_commands()
     local context_text = nil
     if opts and opts.args and opts.args ~= "" then
       context_text = opts.args
+      -- Strip surrounding quotes if present (user may type :ClaudeCodeSend "hello")
+      if context_text:match('^".*"$') then
+        context_text = context_text:sub(2, -2)
+      elseif context_text:match("^'.*'$") then
+        context_text = context_text:sub(2, -2)
+      end
     end
 
     -- Check if we're in a tree buffer first
