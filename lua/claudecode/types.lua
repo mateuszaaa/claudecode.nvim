@@ -58,6 +58,7 @@
 ---@field file_path string The absolute file path to mention
 ---@field start_line number? Optional start line (0-indexed for Claude compatibility)
 ---@field end_line number? Optional end line (0-indexed for Claude compatibility)
+---@field context_text string? Optional extra context text to send alongside the mention
 ---@field timestamp number Creation timestamp from vim.loop.now() for expiry tracking
 
 -- Terminal provider interface

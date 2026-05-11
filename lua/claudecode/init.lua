@@ -123,7 +123,7 @@ end
 ---@param file_path string The file path to mention
 ---@param start_line number|nil Optional start line
 ---@param end_line number|nil Optional end line
-local function queue_mention(file_path, start_line, end_line)
+local function queue_mention(file_path, start_line, end_line, context_text)
   -- Initialize mention_queue if it doesn't exist (for test compatibility)
   if not M.state.mention_queue then
     M.state.mention_queue = {}
@@ -133,6 +133,7 @@ local function queue_mention(file_path, start_line, end_line)
     file_path = file_path,
     start_line = start_line,
     end_line = end_line,
+    context_text = context_text,
     timestamp = vim.loop.now(),
   }
 
@@ -215,6 +216,9 @@ function M.process_mention_queue(from_new_connection)
         lineStart = mention.start_line,
         lineEnd = mention.end_line,
       }
+      if mention.context_text and mention.context_text ~= "" then
+        params.text = mention.context_text
+      end
 
       local broadcast_success = M.state.server.broadcast("at_mentioned", params)
       if broadcast_success then
@@ -278,9 +282,10 @@ end
 ---@param start_line number|nil Start line (0-indexed for Claude)
 ---@param end_line number|nil End line (0-indexed for Claude)
 ---@param context string|nil Context for logging
+---@param context_text string|nil Optional extra context text to send alongside the mention
 ---@return boolean success Whether the operation was successful
 ---@return string|nil error Error message if failed
-function M.send_at_mention(file_path, start_line, end_line, context)
+function M.send_at_mention(file_path, start_line, end_line, context, context_text)
   context = context or "command"
 
   if not M.state.server then
@@ -291,7 +296,7 @@ function M.send_at_mention(file_path, start_line, end_line, context)
   -- Check if Claude Code is connected
   if M.is_claude_connected() then
     -- Claude is connected, send immediately and ensure terminal is visible
-    local success, error_msg = M._broadcast_at_mention(file_path, start_line, end_line)
+    local success, error_msg = M._broadcast_at_mention(file_path, start_line, end_line, context_text)
     if success then
       local terminal = require("claudecode.terminal")
       if M.state.config and M.state.config.focus_after_send then
@@ -304,7 +309,7 @@ function M.send_at_mention(file_path, start_line, end_line, context)
     return success, error_msg
   else
     -- Claude not connected, queue the mention and launch terminal
-    queue_mention(file_path, start_line, end_line)
+    queue_mention(file_path, start_line, end_line, context_text)
 
     -- Launch terminal with Claude Code
     local terminal = require("claudecode.terminal")
@@ -680,6 +685,12 @@ function M._create_commands()
       return
     end
 
+    -- Extract optional context text from command arguments
+    local context_text = nil
+    if opts and opts.args and opts.args ~= "" then
+      context_text = opts.args
+    end
+
     local selection_module_ok, selection_module = pcall(require, "claudecode.selection")
     if selection_module_ok then
       -- Pass range information if available (for :'<,'> commands)
@@ -687,7 +698,7 @@ function M._create_commands()
       if opts and opts.range and opts.range > 0 then
         line1, line2 = opts.line1, opts.line2
       end
-      local sent_successfully = selection_module.send_at_mention_for_visual_selection(line1, line2)
+      local sent_successfully = selection_module.send_at_mention_for_visual_selection(line1, line2, context_text)
       if sent_successfully then
         -- Exit any potential visual mode (for consistency)
         pcall(function()
@@ -775,6 +786,12 @@ function M._create_commands()
       end
     end
 
+    -- Extract optional context text from command arguments
+    local context_text = nil
+    if opts and opts.args and opts.args ~= "" then
+      context_text = opts.args
+    end
+
     -- Handle regular text selection using range from visual mode
     local selection_module_ok, selection_module = pcall(require, "claudecode.selection")
     if not selection_module_ok then
@@ -784,9 +801,9 @@ function M._create_commands()
     -- Use the marks left by visual mode instead of trying to get current visual selection
     local line1, line2 = vim.fn.line("'<"), vim.fn.line("'>")
     if line1 and line2 and line1 > 0 and line2 > 0 then
-      selection_module.send_at_mention_for_visual_selection(line1, line2)
+      selection_module.send_at_mention_for_visual_selection(line1, line2, context_text)
     else
-      selection_module.send_at_mention_for_visual_selection()
+      selection_module.send_at_mention_for_visual_selection(nil, nil, context_text)
     end
   end
 
@@ -794,8 +811,9 @@ function M._create_commands()
   local unified_send_handler = visual_commands.create_visual_command_wrapper(handle_send_normal, handle_send_visual)
 
   vim.api.nvim_create_user_command("ClaudeCodeSend", unified_send_handler, {
-    desc = "Send current visual selection as an at_mention to Claude Code (supports tree visual selection)",
+    desc = "Send current visual selection as an at_mention to Claude Code (supports tree visual selection and optional context text)",
     range = true,
+    nargs = "?",
   })
 
   local function handle_tree_add_normal()
@@ -1140,7 +1158,11 @@ function M._format_path_for_at_mention(file_path)
 end
 
 ---Test helper functions (exposed for testing)
-function M._broadcast_at_mention(file_path, start_line, end_line)
+---@param file_path string The file path to send
+---@param start_line number|nil Start line (0-indexed for Claude)
+---@param end_line number|nil End line (0-indexed for Claude)
+---@param context_text string|nil Optional extra context text to send alongside the mention
+function M._broadcast_at_mention(file_path, start_line, end_line, context_text)
   if not M.state.server then
     return false, "Claude Code integration is not running"
   end
@@ -1164,6 +1186,9 @@ function M._broadcast_at_mention(file_path, start_line, end_line)
     lineStart = start_line,
     lineEnd = end_line,
   }
+  if context_text and context_text ~= "" then
+    params.text = context_text
+  end
 
   -- For tests or when explicitly configured, broadcast immediately without queuing
   if
@@ -1181,7 +1206,7 @@ function M._broadcast_at_mention(file_path, start_line, end_line)
   end
 
   -- Use mention queue system for debounced broadcasting
-  queue_mention(formatted_path, start_line, end_line)
+  queue_mention(formatted_path, start_line, end_line, context_text)
 
   -- Always return success since we're queuing the message
   -- The actual broadcast result will be logged in the queue processing

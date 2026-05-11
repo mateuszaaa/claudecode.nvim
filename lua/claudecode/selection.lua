@@ -677,7 +677,8 @@ end
 ---Sends an at_mentioned notification for the current visual selection.
 ---@param line1 number|nil Optional start line for range-based selection
 ---@param line2 number|nil Optional end line for range-based selection
-function M.send_at_mention_for_visual_selection(line1, line2)
+---@param context_text string|nil Optional extra context text to send alongside the mention
+function M.send_at_mention_for_visual_selection(line1, line2, context_text)
   if not M.state.tracking_enabled then
     logger.error("selection", "Selection tracking is not enabled.")
     return false
@@ -735,7 +736,7 @@ function M.send_at_mention_for_visual_selection(line1, line2)
   local start_line = sel_to_send.selection.start.line -- Already 0-indexed from selection module
   local end_line = sel_to_send.selection["end"].line -- Already 0-indexed
 
-  local success, error_msg = claudecode_main.send_at_mention(file_path, start_line, end_line, "ClaudeCodeSend")
+  local success, error_msg = claudecode_main.send_at_mention(file_path, start_line, end_line, "ClaudeCodeSend", context_text)
 
   if success then
     logger.debug("selection", "Visual selection sent as at-mention.")
