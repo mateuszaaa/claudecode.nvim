@@ -736,7 +736,21 @@ function M.send_at_mention_for_visual_selection(line1, line2, context_text)
   local start_line = sel_to_send.selection.start.line -- Already 0-indexed from selection module
   local end_line = sel_to_send.selection["end"].line -- Already 0-indexed
 
-  local success, error_msg = claudecode_main.send_at_mention(file_path, start_line, end_line, "ClaudeCodeSend", context_text)
+  -- The `at_mentioned` method in Claude Code CLI only supports filePath, lineStart, lineEnd.
+  -- It does NOT have a `text` field. So we use `selection_changed` (which DOES support `text`)
+  -- to send the context text right before the at_mention.
+  -- The CLI inserts a system prompt from selection_changed, so the context appears in Claude's prompt.
+  if context_text and context_text ~= "" then
+    local context_selection = {
+      text = context_text,
+      filePath = sel_to_send.filePath,
+      fileUrl = sel_to_send.fileUrl,
+      selection = sel_to_send.selection,
+    }
+    M.server.broadcast("selection_changed", context_selection)
+  end
+
+  local success, error_msg = claudecode_main.send_at_mention(file_path, start_line, end_line, "ClaudeCodeSend")
 
   if success then
     logger.debug("selection", "Visual selection sent as at-mention.")
