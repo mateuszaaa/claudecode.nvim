@@ -741,13 +741,17 @@ function M.send_at_mention_for_visual_selection(line1, line2, context_text)
   -- to send the context text right before the at_mention.
   -- The CLI inserts a system prompt from selection_changed, so the context appears in Claude's prompt.
   if context_text and context_text ~= "" then
+    -- Stop debounce timer so it doesn't overwrite our context with the original selection
+    M._cancel_debounce_timer()
+
     local context_selection = {
-      text = context_text,
+      text = context_text .. "\n\n---\n\n" .. (sel_to_send.text or ""),
       filePath = sel_to_send.filePath,
       fileUrl = sel_to_send.fileUrl,
       selection = sel_to_send.selection,
     }
-    M.server.broadcast("selection_changed", context_selection)
+    -- Use claudecode_main.state.server (validated above) instead of M.server (could be stale)
+    claudecode_main.state.server.broadcast("selection_changed", context_selection)
   end
 
   local success, error_msg = claudecode_main.send_at_mention(file_path, start_line, end_line, "ClaudeCodeSend")
